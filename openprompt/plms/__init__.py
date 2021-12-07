@@ -10,7 +10,9 @@ from transformers import BertConfig, BertTokenizer, BertModel, BertForMaskedLM, 
                          AlbertTokenizer, AlbertConfig, AlbertModel, AlbertForMaskedLM, \
                          T5Config, T5Tokenizer, T5ForConditionalGeneration, \
                          OpenAIGPTTokenizer, OpenAIGPTLMHeadModel, OpenAIGPTConfig, \
-                         GPT2Config, GPT2Tokenizer, GPT2LMHeadModel      
+                         GPT2Config, GPT2Tokenizer, GPT2LMHeadModel, \
+                         LongformerConfig, AutoTokenizer, LongformerForMaskedLM, \
+                         MT5Config, MT5ForConditionalGeneration
 from collections import namedtuple
 from yacs.config import CfgNode
 
@@ -62,6 +64,19 @@ _MODEL_CLASSES = {
         'model': T5ForConditionalGeneration,
         'wrapper': T5LMTokenizerWrapper,
     }),
+    'mt5':ModelClass(**{
+        'config': MT5Config,
+        'tokenizer': T5Tokenizer,
+        'model': MT5ForConditionalGeneration,
+        'wrapper': T5TokenizerWrapper,
+    }),
+    'lawformer':ModelClass(**{
+        'config': LongformerConfig,
+        'tokenizer': AutoTokenizer,
+        'model': LongformerForMaskedLM,
+        # 'wrapper': LawformerTokenizerWrapper,
+        'wrapper': MLMTokenizerWrapper,
+    }),
 }
 
 
@@ -69,7 +84,7 @@ def get_model_class(plm_type: str):
     return _MODEL_CLASSES[plm_type]
 
 
-def load_plm(model_name, model_path, specials_to_add = None):
+def load_plm(model_name, model_path, tokenizer_path = None, specials_to_add = None, is_additional = False):
     r"""A plm loader using a global config.
     It will load the model, tokenizer, and config simulatenously.
     
@@ -80,9 +95,9 @@ def load_plm(model_name, model_path, specials_to_add = None):
         :obj:`PreTrainedModel`: The pretrained model.
         :obj:`tokenizer`: The pretrained tokenizer.
         :obj:`model_config`: The config of the pretrained model.
-        :obj:`model_config`: The wrapper class of this plm.
+        :obj:`Wrapper`: The wrapper class of this plm.
     """
-    model_class = get_model_class(plm_type = model_name)
+    model_class = get_model_class(plm_type=model_name)
     model_config = model_class.config.from_pretrained(model_path)
     # you can change huggingface model_config here
     # if 't5'  in model_name: # remove dropout according to PPT~\ref{}
@@ -92,12 +107,18 @@ def load_plm(model_name, model_path, specials_to_add = None):
         # model_config.attn_pdrop = 0.0
         # model_config.resid_pdrop = 0.0
         # model_config.embd_pdrop = 0.0
+
+    if tokenizer_path is None:
+        tokenizer_path = model_path
+
     model = model_class.model.from_pretrained(model_path, config=model_config)
-    tokenizer = model_class.tokenizer.from_pretrained(model_path)
+    tokenizer = model_class.tokenizer.from_pretrained(tokenizer_path, use_fast=False)
     wrapper = model_class.wrapper
 
-
-    model, tokenizer = add_special_tokens(model, tokenizer, specials_to_add=specials_to_add)
+    model, tokenizer = add_special_tokens(
+        model, tokenizer,
+        specials_to_add=specials_to_add, is_additional=is_additional
+    )
     return model, tokenizer, model_config, wrapper
 
 def load_plm_from_config(config: CfgNode):
@@ -130,7 +151,8 @@ def load_plm_from_config(config: CfgNode):
 
 def add_special_tokens(model: PreTrainedModel, 
                        tokenizer: PreTrainedTokenizer,
-                       specials_to_add: Optional[List[str]] = None):
+                       specials_to_add: Optional[List[str]] = None,
+                       is_additional = False):
     r"""add the special_tokens to tokenizer if the special token
     is not in the tokenizer. 
 
@@ -146,12 +168,20 @@ def add_special_tokens(model: PreTrainedModel,
     """
     if specials_to_add is None:
         return model, tokenizer
-    for token in specials_to_add:
-        if "pad" in token.lower():
-            if tokenizer.pad_token is None:
-                tokenizer.add_special_tokens({'pad_token': token})
-                model.resize_token_embeddings(len(tokenizer))
-                logger.info("pad token is None, set to id {}".format(tokenizer.pad_token_id))
+
+    # Able to add additional special tokens.
+    if is_additional:
+        tokenizer.add_special_tokens({"additional_special_tokens": specials_to_add})
+        model.resize_token_embeddings(len(tokenizer))
+        logger.info("Add {} additional special tokens to tokenizer.".format(len(specials_to_add) - 1))
+
+    else:
+        for token in specials_to_add:
+            if "pad" in token.lower():
+                if tokenizer.pad_token is None:
+                    tokenizer.add_special_tokens({'pad_token': token})
+                    model.resize_token_embeddings(len(tokenizer))
+                    logger.info("pad token is None, set to id {}".format(tokenizer.pad_token_id))
     return model, tokenizer
 
 
