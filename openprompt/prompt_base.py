@@ -549,6 +549,8 @@ class Verbalizer(nn.Module):
         """
         if self.multi_token_handler == "first":
             label_words_logits = label_words_logits.select(dim=-1, index=0)
+        elif self.multi_token_handler == "last":
+            label_words_logits = label_words_logits.select(dim=-1, index=-1)
         elif self.multi_token_handler == "max":
             label_words_logits = label_words_logits - 1000*(1-mask.unsqueeze(0))
             label_words_logits = label_words_logits.max(dim=-1).values
