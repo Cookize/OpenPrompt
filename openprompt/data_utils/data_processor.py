@@ -91,7 +91,7 @@ class DataProcessor:
         """
         return len(self.labels)
 
-    def get_train_examples(self, data_dir: Optional[str] = None) -> InputExample:
+    def get_train_examples(self, data_dir: Optional[str] = None) -> List[InputExample]:
         """
         get train examples from the training file under :obj:`data_dir`
 
