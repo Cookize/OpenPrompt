@@ -49,7 +49,8 @@ class PtuningTemplate(ManualTemplate):
         idx = []
         num_soft_token = 0
         for token in self.text:
-            if token == self.soft_token:
+            # if token == self.soft_token:
+            if self.soft_token in token:
                 num_soft_token += 1
                 idx.append(num_soft_token)
             else:
@@ -61,7 +62,8 @@ class PtuningTemplate(ManualTemplate):
         when template text was set, generate parameters needed in p-tuning input embedding phrase
         """
         self.text = self.parse_text(self.text)
-        self.num_soft_token = sum([token == self.soft_token for token in self.text])
+        # self.num_soft_token = sum([token == self.soft_token for token in self.text])
+        self.num_soft_token = sum([self.soft_token in token for token in self.text])
         self.generate_parameters()
 
     def generate_parameters(self) -> None:
