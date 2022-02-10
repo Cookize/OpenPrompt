@@ -95,7 +95,7 @@ def load_plm(model_name, model_path, tokenizer_path = None, specials_to_add = No
         :obj:`PreTrainedModel`: The pretrained model.
         :obj:`tokenizer`: The pretrained tokenizer.
         :obj:`model_config`: The config of the pretrained model.
-        :obj:`Wrapper`: The wrapper class of this plm.
+        :obj:`wrapper`: The wrapper class of this plm.
     """
     model_class = get_model_class(plm_type=model_name)
     model_config = model_class.config.from_pretrained(model_path)

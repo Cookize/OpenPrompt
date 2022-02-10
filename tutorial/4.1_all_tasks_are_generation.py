@@ -378,21 +378,21 @@ for epoch in range(1000000):
                 log_loss = tot_loss
 
         
-        if optimizer1 is not None:
-            optimizer1.step()
-            optimizer1.zero_grad()
-        if scheduler1 is not None:
-            scheduler1.step()
-        if optimizer2 is not None:
-            optimizer2.step()
-            optimizer2.zero_grad()
-        if scheduler2 is not None:
-            scheduler2.step()
+                if optimizer1 is not None:
+                    optimizer1.step()
+                    optimizer1.zero_grad()
+                if scheduler1 is not None:
+                    scheduler1.step()
+                if optimizer2 is not None:
+                    optimizer2.step()
+                    optimizer2.zero_grad()
+                if scheduler2 is not None:
+                    scheduler2.step()
 
         tot_train_time += time.time()
 
         if actual_step % gradient_accumulation_steps == 0 and glb_step >0 and glb_step % args.eval_every_steps == 0:
-            val_acc = evaluate(prompt_model, validation_dataloader, myverbalizer)
+            val_acc = evaluate(prompt_model, validation_dataloader)
             if val_acc >= best_val_acc:
                 torch.save(prompt_model.state_dict(),f"{args.project_root}/../ckpts/{this_run_unicode}.ckpt")
                 best_val_acc = val_acc
