@@ -144,7 +144,10 @@ def load_plm_from_config(config: CfgNode):
         if "<pad>" not in config.plm.specials_to_add:
             config.plm.specials_to_add.append("<pad>")
     model = model_class.model.from_pretrained(plm_config.model_path, config=model_config)
-    tokenizer = model_class.tokenizer.from_pretrained(plm_config.model_path)
+    if 'lawformer' in plm_config.model_name:
+        tokenizer = model_class.tokenizer.from_pretrained(plm_config.tokenizer_path, use_fast=False)
+    else:
+        tokenizer = model_class.tokenizer.from_pretrained(plm_config.model_path)
     wrapper = model_class.wrapper
     model, tokenizer = add_special_tokens(model, tokenizer, specials_to_add=config.plm.specials_to_add)
     return model, tokenizer, model_config, wrapper
