@@ -2,6 +2,15 @@ dataset:
   name: super_glue.boolq
   path:  # dataset in huggingface doesn't need path
 
+task: classification
+classification:
+  parent_config:  task
+  metric:
+    - accuracy
+    - micro-f1
+    - macro-f1
+  loss_function:  cross_entropy
+
 plm:
   model_name: bert
   model_path: bert-large-cased

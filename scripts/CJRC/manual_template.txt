@@ -1,0 +1,2 @@
+{"placeholder":"text_a"} {"placeholder":"text_b"} {"mask"}。
+{"placeholder":"text_a"} 问：{"placeholder":"text_b"} 答：{"mask"}。

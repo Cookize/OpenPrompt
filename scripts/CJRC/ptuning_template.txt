@@ -1,0 +1,1 @@
+{"placeholder": "text_a"} {"soft"} 问：{"soft"} {"placeholder": "text_b"} {"soft"} 答： {"soft"} {"soft"} {"mask"} {"soft"}。

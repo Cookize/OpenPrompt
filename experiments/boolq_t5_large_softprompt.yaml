@@ -2,6 +2,15 @@ dataset:
   name: super_glue.boolq
   path: # dataset in huggingface doesn't need path
 
+task: classification
+classification:
+  parent_config:  task
+  metric:
+    - accuracy
+    - micro-f1
+    - macro-f1
+  loss_function:  cross_entropy
+
 plm:
   model_name: t5
   model_path: t5-large
@@ -60,10 +69,11 @@ manual_verbalizer:
   file_path: scripts/SuperGLUE/BoolQ/manual_verbalizer.txt
   
 environment:
-  num_gpus: 3
+  num_gpus: 1
   cuda_visible_devices:
+    - 0
   local_rank: 0
-  model_parallel: True
-  device_map:
+  # model_parallel: True
+  # device_map:
 
 learning_setting: full
