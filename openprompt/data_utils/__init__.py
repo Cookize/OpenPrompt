@@ -10,6 +10,7 @@ from .data_sampler import FewShotSampler
 # support loading transformers datasets from https://huggingface.co/docs/datasets/
 from .nli_dataset import PROCESSORS as NLI_PROCESSORS
 from .cjrc19_dataset import PROCESSORS as LEGAL_PROCESSOES
+from .boolqa_dataset import PROCESSORS as BOOLQA_PROCESSORS
 
 from openprompt.utils.logging import logger
 from openprompt.data_utils.huggingface_dataset import PROCESSORS as HF_PROCESSORS
@@ -25,6 +26,7 @@ PROCESSORS = {
     **HF_PROCESSORS,
     **NLI_PROCESSORS,
     **LEGAL_PROCESSOES,
+    **BOOLQA_PROCESSORS,
 }
 
 
