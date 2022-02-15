@@ -1,5 +1,10 @@
 from argparse import RawDescriptionHelpFormatter
 from doctest import Example
+from email.errors import InvalidMultipartContentTransferEncodingDefect
+from turtle import pos
+
+from scipy import rand
+from torch import positive
 from openprompt.data_utils.utils import InputExample
 import os
 import json, csv, re
@@ -15,20 +20,17 @@ import numpy as np
 import random
 
 
-YESNO_LABELS = ['Yes', 'No', 'Depends']
-LABELS_MAP = {
-    "Yes": "是",
-    "No": "否",
-#     "Depends": "",
-}
-LABELS = ["否", "是"]
-CONTEXT_LENGTH = [50, 800]
-
-
 class DuReaderBoolQADataset(DataProcessor):
 
     def __init__(self):
-        super().__init__(LABELS)
+        super().__init__(["否", "是"])
+        self.YESNO_LABELS = ['Yes', 'No', 'Depends']
+        self.LABELS_MAP = {
+            "Yes": "是",
+            "No": "否",
+        #     "Depends": "",
+        }
+        self.CONTEXT_LENGTH = [50, 800]
     
     def get_examples(self, data_dir: Optional[str] = None, split: Optional[str] = None) -> List[InputExample]:
        
@@ -52,32 +54,26 @@ class DuReaderBoolQADataset(DataProcessor):
 
             sample = raw_data[i]
             
-            if sample["yesno_answer"] == YESNO_LABELS[2]:
+            if sample["yesno_answer"] == self.YESNO_LABELS[2]:
                 count_depend += 1
                 continue
 
             question = "".join(sample["question"]).replace(" ", "").replace("，", ",").replace("。", ".")
-            label_text = LABELS_MAP[sample["yesno_answer"]]
+            label_text = self.LABELS_MAP[sample["yesno_answer"]]
             count = 0
             label = 0
 
-            if sample["yesno_answer"] == YESNO_LABELS[1]:
+            if sample["yesno_answer"] == self.YESNO_LABELS[1]:
                 label = 1
             
             for context in sample["documents"]:
                 
-                # new_data = {
-                #     "id": count_global,
-                #     "label": label,
-                #     "question": question,
-                #     # "title": context["title"],
-                #     "context": "".join(context["paragraphs"]).replace(" ", "").replace("，", ",").replace("。", "."),
-                # }
                 context = "".join(context["paragraphs"]).replace(" ", "").replace("，", ",").replace("。", ".")
-                if len(context) > CONTEXT_LENGTH[1]:
+
+                if len(context) > self.CONTEXT_LENGTH[1]:
                     count_to_long += 1
                     continue
-                elif len(context) < CONTEXT_LENGTH[0]:
+                elif len(context) < self.CONTEXT_LENGTH[0]:
                     count_to_short += 1
                     continue
                 
@@ -105,6 +101,105 @@ class DuReaderBoolQADataset(DataProcessor):
         return examples
 
 
+class IFLYTEKBoolQADataset(DataProcessor):
+
+    def __init__(self):
+        super().__init__(["否", "是"])
+        self.CONTEXT_LENGTH = [50, 800]
+        self.id2topic = None
+        
+    def get_examples(self, data_dir: Optional[str] = None, split: Optional[str] = None) -> List[InputExample]:
+
+        # load topics
+        if self.id2topic == None:
+            self.load_topics(data_dir)
+
+        examples = []
+        raw_data = []
+
+        path = os.path.join(data_dir, "{}.json".format(split))
+        with open(path, encoding="UTF-8") as load_f:
+            decoder = json.JSONDecoder()
+            for line in load_f:
+                raw_data.append(decoder.decode(line))
+
+        count_yes = 0
+        count_no = 0
+        count_global = 0
+        count_to_long = 0
+        count_to_short = 0
+
+        for i in tqdm(range(len(raw_data)), desc="Processing {} data of IFLYTEKBoolQA".format(split)):
+
+            sample = raw_data[i]
+
+            correct_topic = int(sample["label"], base=10)
+            correct_topic_text = sample["label_des"]
+
+            # delete the topic 'others'
+            if correct_topic == 118:
+                continue
+
+            context = "".join(sample["sentence"]).replace(" ", "").replace("，", ",").replace("。", ".")
+            if len(context) > self.CONTEXT_LENGTH[1]:
+                count_to_long += 1
+                continue
+            elif len(context) < self.CONTEXT_LENGTH[0]:
+                count_to_short += 1
+                continue
+
+            incorrect_topic = random.randint(0, 117)
+            if incorrect_topic >= correct_topic:
+                incorrect_topic += 1
+            incorrect_topic_text = self.id2topic[incorrect_topic]
+
+            positive_data = InputExample(
+                guid=str(count_global),
+                text_a=context,
+                text_b=correct_topic_text,
+                tgt_text=self.labels[1],
+                label=1,
+            )
+            examples.append(positive_data)
+            count_global += 1
+            count_yes += 1
+
+            negative_data = InputExample(
+                guid=str(count_global),
+                text_a=context,
+                text_b=incorrect_topic_text,
+                tgt_text=self.labels[0],
+                label=0,
+            )
+            examples.append(negative_data)
+            count_global += 1
+            count_no += 1
+
+        print("Total:%d, Yes:%d, No:%d" % (count_global, count_yes, count_no))
+        print("Deleted:\n\tTo_long:%d, To_short:%d" % (count_to_long, count_to_short))
+
+        print(examples[0].text_a)
+
+        return examples
+
+    def load_topics(self, data_dir: Optional[str] = None) -> None:
+
+        self.id2topic = {}
+        count_topic = 0
+        topics_path = os.path.join(data_dir, "{}.json".format("labels"))
+        with open(topics_path, encoding="UTF-8") as load_f:
+            decoder = json.JSONDecoder()
+            for line in load_f:
+                topic = decoder.decode(line)
+                self.id2topic[int(topic["label"], base=10)] = topic["label_des"]
+                count_topic += 1
+
+        print("Load topics:%d" % (count_topic))
+
+        return
+
+
 PROCESSORS = {
     "dureaderboolqa": DuReaderBoolQADataset,
+    "iflytekboolqa": IFLYTEKBoolQADataset,
 }

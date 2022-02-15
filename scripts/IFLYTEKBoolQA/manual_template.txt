@@ -1,0 +1,2 @@
+{"placeholder":"text_a"} 这篇文章和“{"placeholder":"text_b"}”相关么？ {"mask"} 。
+{"placeholder":"text_a"} 问：{"placeholder":"text_b"} 答：{"mask"}。
