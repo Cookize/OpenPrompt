@@ -1,6 +1,6 @@
 dataset:
-  name: cjrc_2019_bool
-  path: datasets/cjrc_2019
+  name: iflytekboolqa
+  path: datasets/BoolQA/IFLYTEKBoolQA
 
 dataloader:
   max_seq_length: 1024
@@ -31,7 +31,10 @@ plm:
 
 train:
   batch_size: 9
-  num_epochs: 100
+  gradient_accumulation_steps: 2
+  max_grad_norm: 1.0
+  num_epochs: 
+  num_training_steps: 30000
 
 test:
   batch_size: 9
@@ -40,27 +43,24 @@ dev:
   batch_size: 9
 
 
-
 template: mixed_template
 verbalizer: manual_verbalizer
 
 
 mixed_template:
   choice: 0
-  file_path: scripts/CJRC/mixed_template.txt
+  file_path: scripts/IFLYTEKBoolQA/ptuning_template.txt
 
 
 manual_verbalizer:
   choice: 0
-  file_path: scripts/CJRC/manual_verbalizer.txt
+  file_path: scripts/IFLYTEKBoolQA/manual_verbalizer.txt
   
 environment:
   num_gpus: 1
   cuda_visible_devices:
     - 0
   local_rank: 0
-  # model_parallel: True
-  # device_map:
 
 learning_setting: full
 

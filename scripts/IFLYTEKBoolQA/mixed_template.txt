@@ -1,1 +1,1 @@
-{"placeholder": "text_a"} {"soft":"在这个案件中，"} {"placeholder": "text_b"} {"soft"} {"soft"} {"soft"} {"mask"}。
+{"placeholder": "text_a"} {"soft"} {"soft":"这篇文章和“"} {"placeholder": "text_b"} {"soft"} {"soft":"”相关么？"} {"soft"} {"mask"}。
