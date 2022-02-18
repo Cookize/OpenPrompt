@@ -17,6 +17,7 @@ from openprompt.utils.logging import logger
 from openprompt.data_utils.data_processor import DataProcessor
 
 import numpy as np
+import pandas as pd
 import random
 
 
@@ -327,7 +328,75 @@ class IFLYTEKBoolQADataset(DataProcessor):
         return
 
 
+class ASAPAspectBoolQADataset(DataProcessor):
+
+    def __init__(self):
+        super().__init__(["差", "良", "优"])
+        self.CONTEXT_LENGTH = [50, 800]
+        self.aspect2qa = None
+
+    def get_examples(self, data_dir: Optional[str] = None, split: Optional[str] = None) -> List[InputExample]:
+        
+        if self.aspect2qa == None:
+            self.load_aspect2qa(data_dir=data_dir)
+        
+        examples = []
+
+        path = os.path.join(data_dir, "{}.tsv".format(split))
+        data = pd.read_csv(path, sep="\t")
+
+        def process(text):
+            new_text = text.replace(" ", "").replace("\\n", "").replace("\\t", "").replace("\\", "")
+            return new_text
+
+        data["text_a"] = data["text_a"].apply(process)
+
+        count_yes = 0
+        count_mid = 0
+        count_no = 0
+        count_global = 0
+        count_to_long = 0
+        count_to_short = 0
+
+        for index, sample in tqdm(data.iterrows(), desc="Processing {} data of IFLYTEKBoolQA".format(""), total=data.shape[0]):
+            
+            
+            new_examples = [InputExample(
+                guid=str(count_global + i),
+                text_a=sample["text_a"],
+                text_b=aspect_question,
+                tgt_text=self.labels[sample["label"] + 1],
+                label=sample["label"] + 1,
+            ) for i, aspect_question in enumerate(self.aspect2qa[sample["cate"]])]
+
+            examples.extend(new_examples)
+            count_global += len(new_examples)
+            if(sample["label"] == -1):
+                count_no += len(new_examples)
+            elif(sample["label"] == 0):
+                count_mid += len(new_examples)
+            else:
+                count_yes += len(new_examples)
+
+        print("Total:%d, Yes:%d, Mid:%d, No:%d" % (count_global, count_yes, count_mid, count_no))
+
+        print(examples[0].text_a)
+        print(examples[0].text_b)
+
+        return examples
+
+    def load_aspect2qa(self, data_dir: Optional[str] = None) -> None:
+        
+        print("Load aspect info...")
+        path = os.path.join(data_dir, "{}.json".format("aspect2qa"))
+        with open(path, encoding="UTF-8") as load_f:
+            self.aspect2qa = json.load(load_f)
+
+        return
+
+
 PROCESSORS = {
     "dureaderboolqa": DuReaderBoolQADataset,
     "iflytekboolqa": IFLYTEKBoolQADataset,
+    "asap_aspectboolqa": ASAPAspectBoolQADataset,
 }
