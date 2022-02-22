@@ -31,10 +31,10 @@ plm:
 
 train:
   batch_size: 9
-  gradient_accumulation_steps: 10
+  gradient_accumulation_steps: 2
   max_grad_norm: 1.0
-  num_epochs: 10
-  num_training_steps: 
+  num_epochs:
+  num_training_steps: 30000
 
 test:
   batch_size: 9

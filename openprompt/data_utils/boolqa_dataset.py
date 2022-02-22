@@ -1,7 +1,10 @@
 from argparse import RawDescriptionHelpFormatter
 from doctest import Example
 from email.errors import InvalidMultipartContentTransferEncodingDefect
+from lib2to3.pgen2.token import OP
+from optparse import Option
 from turtle import pos
+from pyparsing import OneOrMore
 
 from scipy import rand
 from torch import positive
@@ -19,6 +22,15 @@ from openprompt.data_utils.data_processor import DataProcessor
 import numpy as np
 import pandas as pd
 import random
+
+
+class ZHUnifiedBoolQADataset(DataProcessor):
+
+     # TODO: implemented as the unified chinese boolqa dataset
+
+    def __init__(self, proportion):
+        super().__init__()
+        self.sub_dataset = dict(zip(PROCESSORS.keys(), [PROCESSORS[processor]() for processor in PROCESSORS.keys()]))
 
 
 class DuReaderBoolQADataset(DataProcessor):
@@ -328,7 +340,7 @@ class IFLYTEKBoolQADataset(DataProcessor):
         return
 
 
-class ASAPAspectBoolQADataset(DataProcessor):
+class ASAPAspectQADataset(DataProcessor):
 
     def __init__(self):
         super().__init__(["差", "良", "优"])
@@ -345,10 +357,6 @@ class ASAPAspectBoolQADataset(DataProcessor):
         path = os.path.join(data_dir, "{}.tsv".format(split))
         data = pd.read_csv(path, sep="\t")
 
-        def process(text):
-            new_text = text.replace(" ", "").replace("\\n", "").replace("\\t", "").replace("\\", "")
-            return new_text
-
         data["text_a"] = data["text_a"].apply(process)
 
         count_yes = 0
@@ -358,7 +366,7 @@ class ASAPAspectBoolQADataset(DataProcessor):
         count_to_long = 0
         count_to_short = 0
 
-        for index, sample in tqdm(data.iterrows(), desc="Processing {} data of IFLYTEKBoolQA".format(""), total=data.shape[0]):
+        for index, sample in tqdm(data.iterrows(), desc="Processing {} data of ASAPAspectBoolQA".format(""), total=data.shape[0]):
             
             
             new_examples = [InputExample(
@@ -395,8 +403,139 @@ class ASAPAspectBoolQADataset(DataProcessor):
         return
 
 
+class ASAPAspectBoolQADataset(DataProcessor):
+
+    def __init__(self):
+        super().__init__(["否", "是"])
+        self.CONTEXT_LENGTH = [50, 800]
+        self.aspect2qa = None
+
+    def get_examples(self, data_dir: Optional[str] = None, split: Optional[str] = None) -> List[InputExample]:
+        
+        if self.aspect2qa == None:
+            self.load_aspect2qa(data_dir=data_dir)
+        
+        examples = []
+
+        path = os.path.join(data_dir, "{}.tsv".format(split))
+        data = pd.read_csv(path, sep="\t")
+
+        data["text_a"] = data["text_a"].apply(process)
+
+        count_yes = 0
+        count_no = 0
+        count_global = 0
+        count_to_long = 0
+        count_to_short = 0
+
+        for index, sample in tqdm(data.iterrows(), desc="Processing {} data of ASAPAspectBoolQA".format(""), total=data.shape[0]):
+            
+            if len(sample["text_a"]) > self.CONTEXT_LENGTH[1]:
+                count_to_long += 1
+                continue
+            elif len(sample["text_a"]) < self.CONTEXT_LENGTH[0]:
+                count_to_short += 1
+                continue
+
+            # {-1,0}->0; {1}->{1}
+            label = int((sample["label"] + 1) / 2)
+
+            new_examples = [InputExample(
+                guid=str(count_global + i),
+                text_a=sample["text_a"],
+                text_b=aspect_question,
+                tgt_text=self.labels[label],
+                label=label,
+            ) for i, aspect_question in enumerate(self.aspect2qa[sample["cate"]])]
+
+            examples.extend(new_examples)
+            count_global += len(new_examples)
+            if(label == 0):
+                count_no += len(new_examples)
+            else:
+                count_yes += len(new_examples)
+
+        print("Total:%d, Yes:%d, No:%d" % (count_global, count_yes, count_no))
+        print("Deleted:\n\tTo_long:%d, To_short:%d" % (count_to_long, count_to_short))
+
+        print(examples[0].text_a)
+        print(examples[0].text_b)
+
+        return examples
+
+    def load_aspect2qa(self, data_dir: Optional[str] = None) -> None:
+        
+        print("Load aspect info...")
+        path = os.path.join(data_dir, "{}.json".format("aspect2qa"))
+        with open(path, encoding="UTF-8") as load_f:
+            self.aspect2qa = json.load(load_f)
+
+        return
+
+
+class ChnSentiCorpBoolQAdataset(DataProcessor):
+
+    def __init__(self):
+        super().__init__(["否", "是"])
+        self.CONTEXT_LENGTH = [50, 800]
+
+        return
+
+    def get_examples(self, data_dir: Optional[str] = None, split: Optional[str] = None) -> List[InputExample]:
+        
+        examples = []
+
+        # path = os.path.join(data_dir, "{}.tsv".format(split))
+        # data = pd.read_csv(path, sep="\t")
+
+        # data["text_a"] = data["text_a"].apply(process)
+
+        # count_yes = 0
+        # count_mid = 0
+        # count_no = 0
+        # count_global = 0
+        # count_to_long = 0
+        # count_to_short = 0
+
+        # for index, sample in tqdm(data.iterrows(), desc="Processing {} data of ChnSentiCorpBoolQA".format(""), total=data.shape[0]):
+            
+        #     context = process(sample["text_a"])
+            
+            
+        #     new_examples = [InputExample(
+        #         guid=str(count_global + i),
+        #         text_a=sample["text_a"],
+        #         text_b=aspect_question,
+        #         tgt_text=self.labels[sample["label"] + 1],
+        #         label=sample["label"] + 1,
+        #     ) for i, aspect_question in enumerate(self.aspect2qa[sample["cate"]])]
+
+        #     examples.extend(new_examples)
+        #     count_global += len(new_examples)
+        #     if(sample["label"] == -1):
+        #         count_no += len(new_examples)
+        #     elif(sample["label"] == 0):
+        #         count_mid += len(new_examples)
+        #     else:
+        #         count_yes += len(new_examples)
+
+        # print("Total:%d, Yes:%d, Mid:%d, No:%d" % (count_global, count_yes, count_mid, count_no))
+
+        # print(examples[0].text_a)
+        # print(examples[0].text_b)
+        
+        return examples
+
+
+def process(text):
+    new_text = text.replace(" ", "").replace("\\n", "").replace("\\t", "").replace("\\", "")
+    return new_text
+
+
 PROCESSORS = {
     "dureaderboolqa": DuReaderBoolQADataset,
     "iflytekboolqa": IFLYTEKBoolQADataset,
     "asap_aspectboolqa": ASAPAspectBoolQADataset,
+    # "chnsenticorpboolqa": ChnSentiCorpBoolQAdataset, # not implemented
+    "unifiedboolqa_zh": ZHUnifiedBoolQADataset,
 }
