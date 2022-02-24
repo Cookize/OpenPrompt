@@ -1,6 +1,6 @@
 dataset:
-  name: dureaderboolqa
-  path: datasets/BoolQA/DuReaderBoolQA
+  name: unifiedboolqa_zh_3w_equal
+  path: datasets/BoolQA/ZHUnifiedBoolQA_equal3w
 
 dataloader:
   max_seq_length: 1024
@@ -33,8 +33,8 @@ train:
   batch_size: 9
   gradient_accumulation_steps: 2
   max_grad_norm: 1.0
-  num_epochs: 
-  num_training_steps: 30000
+  num_epochs: 15
+  num_training_steps: 
 
 test:
   batch_size: 9
@@ -48,13 +48,13 @@ verbalizer: manual_verbalizer
 
 
 manual_template:
-  choice: 1
-  file_path: scripts/DuReaderBoolQA/manual_template.txt
+  choice: 0
+  file_path: scripts/ZHUnifiedBoolQA/manual_template.txt
 
 
 manual_verbalizer:
   choice: 0
-  file_path: scripts/DuReaderBoolQA/manual_verbalizer.txt
+  file_path: scripts/ZHUnifiedBoolQA/manual_verbalizer.txt
   
 environment:
   num_gpus: 1

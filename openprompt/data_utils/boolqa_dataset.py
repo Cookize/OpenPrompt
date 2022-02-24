@@ -3,6 +3,7 @@ from doctest import Example
 from email.errors import InvalidMultipartContentTransferEncodingDefect
 from lib2to3.pgen2.token import OP
 from optparse import Option
+from platform import processor
 from turtle import pos
 from pyparsing import OneOrMore
 
@@ -24,13 +25,88 @@ import pandas as pd
 import random
 
 
+class BoolQADataset(DataProcessor):
+
+    def __init__(self):
+        super().__init__(["否", "是"])
+
+    def get_examples(self, data_dir: Optional[str] = None, split: Optional[str] = None) -> List[InputExample]:
+
+        examples = []
+
+        path = os.path.join(data_dir, "{}.tsv".format(split))
+        data = pd.read_csv(path, sep="\t")
+
+        count_yes = 0
+        count_no = 0
+        count_global = 0
+
+        for index, sample in tqdm(data.iterrows(), desc="Processing {} data of BoolQA".format(split), total=data.shape[0]):
+
+            new_example = InputExample(
+                guid=str(count_global),
+                text_a=sample["text_a"],
+                text_b=sample["question"],
+                tgt_text=self.labels[sample["label"]],
+                label=sample["label"],
+            )
+
+            examples.append(new_example)
+            count_global += 1
+            if(sample["label"] == 0):
+                count_no += 1
+            else:
+                count_yes += 1
+
+        print("Total:%d, Yes:%d, No:%d" % (count_global, count_yes, count_no))
+
+        print(examples[0].text_a)
+        print(examples[0].text_b)
+        print(examples[0].tgt_text)
+        print(examples[0].label)
+
+        return examples
+
 class ZHUnifiedBoolQADataset(DataProcessor):
 
      # TODO: implemented as the unified chinese boolqa dataset
 
-    def __init__(self, proportion):
-        super().__init__()
+    def __init__(self, proportion: Optional[dict] = None, size: int = 10000):
+        super().__init__(["否", "是"])
         self.sub_dataset = dict(zip(PROCESSORS.keys(), [PROCESSORS[processor]() for processor in PROCESSORS.keys()]))
+        self.sub_train_size = size
+        self.sub_dev_size = int(size / 5)
+        self.sub_test_size = int(size / 5)
+
+        if proportion is None:
+            proportion =  dict(zip(PROCESSORS.keys(), [1] * len(PROCESSORS.keys())))
+
+        self.proportion = proportion
+
+        return
+
+    
+    def get_examples(self, data_dir: Optional[str] = None, split: Optional[str] = None) -> List[InputExample]:
+
+        examples = []
+
+        for sub_set, sub_processor in self.sub_dataset.items():
+
+            sub_dataset = random.shuffle(sub_processor.get_examples("{}/{}".format(data_dir, sub_set), split))
+
+            if split == "dev":
+                sub_dataset = sub_dataset[:self.sub_dev_size * self.proportion[sub_set]]
+            elif split == "test":
+                sub_dataset = sub_dataset[:self.sub_test_size * self.proportion[sub_set]]
+            else:
+                sub_dataset = sub_dataset[:self.sub_train_size * self.proportion[sub_set]]
+            
+            examples += sub_dataset
+        
+
+        print("Unified Bool QA (ZH) Total %s data:%d" % (split, len(examples))) 
+
+        return examples
 
 
 class DuReaderBoolQADataset(DataProcessor):
@@ -537,5 +613,6 @@ PROCESSORS = {
     "iflytekboolqa": IFLYTEKBoolQADataset,
     "asap_aspectboolqa": ASAPAspectBoolQADataset,
     # "chnsenticorpboolqa": ChnSentiCorpBoolQAdataset, # not implemented
-    "unifiedboolqa_zh": ZHUnifiedBoolQADataset,
+    # "unifiedboolqa_zh": ZHUnifiedBoolQADataset,
+    "unifiedboolqa_zh_3w_equal": BoolQADataset,
 }
