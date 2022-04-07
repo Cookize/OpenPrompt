@@ -18,7 +18,7 @@ from yacs.config import CfgNode
 
 from openprompt.utils.logging import logger
 
-    
+
 ModelClass = namedtuple("ModelClass", ('config', 'tokenizer', 'model','wrapper'))
 
 _MODEL_CLASSES = {
@@ -87,10 +87,10 @@ def get_model_class(plm_type: str):
 def load_plm(model_name, model_path, tokenizer_path = None, specials_to_add = None, is_additional = False):
     r"""A plm loader using a global config.
     It will load the model, tokenizer, and config simulatenously.
-    
+
     Args:
         config (:obj:`CfgNode`): The global config from the CfgNode.
-    
+
     Returns:
         :obj:`PreTrainedModel`: The pretrained model.
         :obj:`tokenizer`: The pretrained tokenizer.
@@ -102,7 +102,7 @@ def load_plm(model_name, model_path, tokenizer_path = None, specials_to_add = No
     # you can change huggingface model_config here
     # if 't5'  in model_name: # remove dropout according to PPT~\ref{}
     #     model_config.dropout_rate = 0.0
-    if 'gpt' in model_name: # add pad token for gpt 
+    if 'gpt' in model_name: # add pad token for gpt
         specials_to_add = ["<pad>"]
         # model_config.attn_pdrop = 0.0
         # model_config.resid_pdrop = 0.0
@@ -124,10 +124,10 @@ def load_plm(model_name, model_path, tokenizer_path = None, specials_to_add = No
 def load_plm_from_config(config: CfgNode):
     r"""A plm loader using a global config.
     It will load the model, tokenizer, and config simulatenously.
-    
+
     Args:
         config (:obj:`CfgNode`): The global config from the CfgNode.
-    
+
     Returns:
         :obj:`PreTrainedModel`: The pretrained model.
         :obj:`tokenizer`: The pretrained tokenizer.
@@ -152,12 +152,12 @@ def load_plm_from_config(config: CfgNode):
     model, tokenizer = add_special_tokens(model, tokenizer, specials_to_add=config.plm.specials_to_add)
     return model, tokenizer, model_config, wrapper
 
-def add_special_tokens(model: PreTrainedModel, 
+def add_special_tokens(model: PreTrainedModel,
                        tokenizer: PreTrainedTokenizer,
                        specials_to_add: Optional[List[str]] = None,
                        is_additional = False):
     r"""add the special_tokens to tokenizer if the special token
-    is not in the tokenizer. 
+    is not in the tokenizer.
 
     Args:
         model (:obj:`PreTrainedModel`): The pretrained model to resize embedding

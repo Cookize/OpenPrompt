@@ -33,12 +33,12 @@ PROCESSORS = {
 def load_dataset(config: CfgNode, return_class=True, test=False):
     r"""A plm loader using a global config.
     It will load the train, valid, and test set (if exists) simulatenously.
-    
+
     Args:
         config (:obj:`CfgNode`): The global config from the CfgNode.
         return_class (:obj:`bool`): Whether return the data processor class
                     for future usage.
-    
+
     Returns:
         :obj:`Optional[List[InputExample]]`: The train dataset.
         :obj:`Optional[List[InputExample]]`: The valid dataset.
@@ -66,7 +66,6 @@ def load_dataset(config: CfgNode, return_class=True, test=False):
         test_dataset = processor.get_test_examples(dataset_config.path)
     except FileNotFoundError:
         logger.warning(f"Has no test dataset in {dataset_config.path}.")
-
     # checking whether donwloaded.
     if (train_dataset is None) and \
        (valid_dataset is None) and \

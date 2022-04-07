@@ -21,6 +21,7 @@ from .prompt_generator import T5TemplateGenerator, TemplateGenerator, Verbalizer
 
 from .generation_verbalizer import GenerationVerbalizer
 from .soft_verbalizer import SoftVerbalizer
+from .prototypical_verbalizer import ProtoVerbalizer
 
 TEMPLATE_CLASS = {
     'manual_template': ManualTemplate,
@@ -39,6 +40,7 @@ VERBALIZER_CLASS = {
     'one2one_verbalizer': One2oneVerbalizer,
     'generation_verbalizer': GenerationVerbalizer,
     'soft_verbalizer': SoftVerbalizer,
+    'proto_verbalizer': ProtoVerbalizer,
 }
 
 TEMPLATE_GENERATOR_CLASS = {
@@ -50,43 +52,43 @@ VERBALIZER_GENERATOR_CLASS = {
 }
 
 
-def load_template(config: CfgNode, 
+def load_template(config: CfgNode,
                 **kwargs,
                 ):
     r"""
     Args:
         config: (:obj:`CfgNode`) The global configure file.
         kwargs: kwargs might include:
-                plm_model: Optional[PreTrainedModel], 
+                plm_model: Optional[PreTrainedModel],
                 plm_tokenizer: Optional[PreTrainedTokenizer],
                 plm_config: Optional[PreTrainedConfig]
-    
+
     Returns:
         A template
     """
     if config.template is not None:
         template_class = TEMPLATE_CLASS[config.template]
-        template = template_class.from_config(config=config[config.template], 
+        template = template_class.from_config(config=config[config.template],
                                      **kwargs)
     return template
 
 def load_verbalizer(config: CfgNode,
                 **kwargs,
-                ): 
+                ):
     r"""
     Args:
         config: (;obj:`CfgNode`) The global configure file.
         kwargs: kwargs might include:
-                plm_model: Optional[PreTrainedModel], 
+                plm_model: Optional[PreTrainedModel],
                 plm_tokenizer: Optional[PreTrainedTokenizer],
                 plm_config: Optional[PreTrainedConfig]
-    
+
     Returns:
         A template
-    """   
+    """
     if config.verbalizer is not None:
         verbalizer_class = VERBALIZER_CLASS[config.verbalizer]
-        verbalizer = verbalizer_class.from_config(config=config[config.verbalizer], 
+        verbalizer = verbalizer_class.from_config(config=config[config.verbalizer],
                                      **kwargs)
     return verbalizer
 

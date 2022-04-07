@@ -1,5 +1,9 @@
+from inspect import Parameter
 import json
+from os import stat
+from transformers.file_utils import ModelOutput
 from transformers.tokenization_utils import PreTrainedTokenizer
+from transformers.utils.dummy_pt_objects import PreTrainedModel
 from yacs.config import CfgNode
 from openprompt.data_utils import InputFeatures
 import re
@@ -9,12 +13,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from openprompt.utils.logging import logger
+import copy
+from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions, Seq2SeqLMOutput, MaskedLMOutput
 
+from transformers.models.t5 import  T5ForConditionalGeneration
 
-
-class ManualVerbalizer(Verbalizer):
+class ProtoVerbalizer(Verbalizer):
     r"""
-    The basic manually defined verbalizer class, this class is inherited from the :obj:`Verbalizer` class.
+    The implementation of the verbalizer in `Prototypical Verbalizer for Prompt-based Few-shot Tuning`
 
     Args:
         tokenizer (:obj:`PreTrainedTokenizer`): The tokenizer of the current pre-trained model to point out the vocabulary.
@@ -23,29 +29,57 @@ class ManualVerbalizer(Verbalizer):
         prefix (:obj:`str`, optional): The prefix string of the verbalizer (used in PLMs like RoBERTa, which is sensitive to prefix space)
         multi_token_handler (:obj:`str`, optional): The handling strategy for multiple tokens produced by the tokenizer.
         post_log_softmax (:obj:`bool`, optional): Whether to apply log softmax post processing on label_logits. Default to True.
+        lr: (:obj:`float`, optional): The learning rate for prototypes.
+        mid_dim: (:obj:`int`, optional): The dimension of prototype embeddings.
+        epochs: (:obj:`int`, optional): The training epochs of prototypes.
+        multi_verb (:obj:`str`, optional): `multi` to ensemble with manual verbalizers, `proto` to use only ProtoVerb.
     """
     def __init__(self,
-                 tokenizer: PreTrainedTokenizer,
+                 tokenizer: Optional[PreTrainedTokenizer],
+                 model: Optional[PreTrainedModel],
                  classes: Optional[List] = None,
                  num_classes: Optional[Sequence[str]] = None,
                  label_words: Optional[Union[Sequence[str], Mapping[str, str]]] = None,
                  prefix: Optional[str] = " ",
                  multi_token_handler: Optional[str] = "first",
                  post_log_softmax: Optional[bool] = True,
+                 lr: Optional[float] = 1e-3,
+                 mid_dim: Optional[int] = 64,
+                 epochs: Optional[int] = 5,
+                 multi_verb: Optional[str] = "multi",
                 ):
         super().__init__(tokenizer=tokenizer, num_classes=num_classes, classes=classes)
         self.prefix = prefix
         self.multi_token_handler = multi_token_handler
-        self.label_words = label_words
         self.post_log_softmax = post_log_softmax
+        self.multi_verb = multi_verb
+        self.lr = lr
+        self.mid_dim = mid_dim
+        self.epochs = epochs
+        self.trained = False
+
+        self.hidden_dims = model.config.hidden_size
+
+        self.head = torch.nn.Linear(self.hidden_dims, self.mid_dim, bias=False)
+
+        if label_words is not None: # use label words as an initialization
+            self.label_words = label_words
+        w = torch.empty((self.num_classes, self.mid_dim))
+        nn.init.xavier_uniform_(w)
+        self.proto = nn.Parameter(w, requires_grad=True)
+        self.optimizer = torch.optim.Adam(self.group_parameters_proto, lr=self.lr)
+
+    @property
+    def group_parameters_proto(self,):
+        r"""Include the last layer's parameters
+        """
+        if isinstance(self.head, torch.nn.Linear):
+            return [p for n, p in self.head.named_parameters()] + [self.proto]
+        else:
+            return [p for n, p in self.head.named_parameters()] + [self.proto]
 
     def on_label_words_set(self):
-        super().on_label_words_set()
         self.label_words = self.add_prefix(self.label_words, self.prefix)
-
-         # TODO should Verbalizer base class has label_words property and setter?
-         # it don't have label_words init argument or label words from_file option at all
-
         self.generate_parameters()
 
     @staticmethod
@@ -102,6 +136,12 @@ class ManualVerbalizer(Verbalizer):
         self.words_ids_mask = nn.Parameter(words_ids_mask, requires_grad=False) # A 3-d mask
         self.label_words_mask = nn.Parameter(torch.clamp(words_ids_mask.sum(dim=-1), max=1), requires_grad=False)
 
+    def process_hiddens(self, hiddens: torch.Tensor, **kwargs):
+        r"""A whole framework to process the original logits over the vocabulary, which contains four steps:
+        """
+        proto_logits = self.sim(self.head(hiddens), self.proto)
+        return proto_logits
+
     def project(self,
                 logits: torch.Tensor,
                 **kwargs,
@@ -146,14 +186,14 @@ class ManualVerbalizer(Verbalizer):
 
         if self.post_log_softmax:
             # normalize
-            label_words_probs = self.normalize(label_words_logits)
+            # label_words_probs = self.normalize(label_words_logits)
 
             # calibrate
             if  hasattr(self, "_calibrate_logits") and self._calibrate_logits is not None:
                 label_words_probs = self.calibrate(label_words_probs=label_words_probs)
 
             # convert to logits
-            label_words_logits = torch.log(label_words_probs+1e-15)
+            # label_words_logits = torch.log(label_words_probs+1e-15)
 
         # aggreate
         label_logits = self.aggregate(label_words_logits)
@@ -207,7 +247,102 @@ class ManualVerbalizer(Verbalizer):
         label_words_probs = label_words_probs.reshape(*shape)
         return label_words_probs
 
+    def ensemble_logits(self, manual_logits, proto_logits):
 
+        logits = torch.stack([manual_logits, proto_logits])
+        logits = logits.permute(1,0,2)
+        logits = self.scaler(logits)
+        logits = torch.mean(logits, 1)
+        return logits
+
+    @staticmethod
+    def scaler(logits):
+        m = logits.mean(-1, keepdim=True)
+        s = logits.std(-1, keepdim=True)
+        return (logits - m) / s
+
+    def process_outputs(self, outputs: Union[torch.Tensor, torch.Tensor], batch: Union[Dict, InputFeatures], **kwargs):
+        manual_logits = self.process_logits(outputs[1])
+        if self.trained is False:
+            return manual_logits
+
+        proto_logits = self.process_hiddens(outputs[0])
+        if self.trained and self.multi_verb == "proto":
+            return proto_logits
+
+        return self.ensemble_logits(manual_logits, proto_logits)
+
+    def gather_outputs(self, outputs: ModelOutput):
+        logits = outputs.logits
+        if isinstance(outputs, Seq2SeqLMOutput):
+            ret = outputs.decoder_hidden_states[-1]
+        elif isinstance(outputs, MaskedLMOutput) or isinstance(outputs, CausalLMOutputWithCrossAttentions):
+            ret = outputs.hidden_states[-1]
+        else:
+            try:
+                ret = outputs.hidden_states[-1]
+            except AttributeError:
+                raise NotImplementedError(f"Gather outputs method for outputs' type {type(outputs)} not implemented")
+
+        return ret, logits
+
+    @staticmethod
+    def sim(x, y):
+        norm_x = F.normalize(x, dim=-1)
+        norm_y = F.normalize(y, dim=-1)
+        return torch.matmul(norm_x, norm_y.transpose(1,0))
+
+    def pcl_loss(self, v_ins):
+        # instance-prototype loss
+
+        sim_mat = torch.exp(self.sim(v_ins, self.proto))
+        num = sim_mat.shape[1]
+        loss = 0.
+        for i in range(num):
+            pos_score = torch.diag(sim_mat[:,i,:])
+            neg_score = (sim_mat[:,i,:].sum(1) - pos_score)
+            loss += - torch.log(pos_score / (pos_score + neg_score)).sum()
+        loss = loss / (num * self.num_classes * self.num_classes)
+
+        # instance-instance loss
+
+        loss_ins = 0.
+        for i in range(v_ins.shape[0]):
+            sim_instance = torch.exp(self.sim(v_ins, v_ins[i]))
+            pos_ins = sim_instance[i]
+            neg_ins = (sim_instance.sum(0) - pos_ins).sum(0)
+            loss_ins += - torch.log(pos_ins / (pos_ins + neg_ins)).sum()
+        loss_ins = loss_ins / (num * self.num_classes * num * self.num_classes)
+        loss = loss + loss_ins
+
+        return loss
+
+
+    def train_proto(self, model, dataloader, device):
+        model.eval()
+        embeds = [[] for _ in range(self.num_classes)]
+        with torch.no_grad():
+            for i, batch in enumerate(dataloader):
+                batch = batch.to("cuda:{}".format(device)).to_dict()
+                outputs = model.prompt_model(batch)
+                hidden, _ = self.gather_outputs(outputs)
+                outputs_at_mask = model.extract_at_mask(hidden, batch)
+                for j in range(len(outputs_at_mask)):
+                    label = batch['label'][j]
+                    embeds[label].append(outputs_at_mask[j])
+        embeds = [torch.stack(e) for e in embeds]
+        embeds = torch.stack(embeds)
+
+        instance_mean = embeds.mean(1)
+        loss = 0.
+        for epoch in range(self.epochs):
+            x = self.head(embeds)
+            self.optimizer.zero_grad()
+            loss = self.pcl_loss(x)
+            loss.backward()
+            self.optimizer.step()
+        logger.info("Total epoch: {}. ProtoVerb loss: {}".format(self.epochs, loss))
+        self.trained = True
 
 
 

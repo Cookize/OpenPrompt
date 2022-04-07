@@ -6,6 +6,7 @@ import argparse
 
 from openprompt.trainer import ClassificationRunner, GenerationRunner
 from openprompt.lm_bff_trainer import LMBFFClassificationRunner
+from openprompt.protoverb_trainer import ProtoVerbClassificationRunner
 from re import template
 from openprompt.pipeline_base import PromptForClassification, PromptForGeneration
 from openprompt.utils.reproduciblity import set_seed
@@ -24,10 +25,10 @@ from openprompt.utils.cuda import model_to_device
 
 def build_dataloader(dataset, template, tokenizer,tokenizer_wrapper_class, config, split):
     dataloader = PromptDataLoader(
-        dataset = dataset, 
-        template = template, 
-        tokenizer = tokenizer, 
-        tokenizer_wrapper_class=tokenizer_wrapper_class, 
+        dataset = dataset,
+        template = template,
+        tokenizer = tokenizer,
+        tokenizer_wrapper_class=tokenizer_wrapper_class,
         batch_size = config[split].batch_size,
         shuffle = config[split].shuffle_data,
         teacher_forcing = config[split].teacher_forcing if hasattr(config[split],'teacher_forcing') else None,
@@ -51,7 +52,7 @@ def main():
         init_logger(os.path.join(EXP_PATH, "log.txt"), config.logging.file_level, config.logging.console_level)
         # save config to the logger directory
         save_config_to_yaml(config)
-    
+
 
     # load dataset. The valid_dataset can be None
     train_dataset, valid_dataset, test_dataset, Processor = load_dataset(config, test = args.test is not None or config.learning_setting == 'zero_shot')
@@ -115,7 +116,6 @@ def main():
             valid_dataset = valid_dataset,
             test_dataset = test_dataset,
         )
-    print("metric:", res)
 
 def trainer(EXP_PATH, config, Processor, train_dataset = None, valid_dataset = None, test_dataset = None, resume = None, test = None, zero = False):
     if not os.path.exists(EXP_PATH):
@@ -127,7 +127,7 @@ def trainer(EXP_PATH, config, Processor, train_dataset = None, valid_dataset = N
     # load the pretrained models, its model, tokenizer, and config.
     plm_model, plm_tokenizer, plm_config, plm_wrapper_class = load_plm_from_config(config)
 
-    
+
 
     # define template and verbalizer
     if config.task == "classification":
@@ -136,7 +136,7 @@ def trainer(EXP_PATH, config, Processor, train_dataset = None, valid_dataset = N
         verbalizer = load_verbalizer(config=config, model=plm_model, tokenizer=plm_tokenizer, plm_config=plm_config, classes=Processor.labels)
         # load prompt’s pipeline model
         prompt_model = PromptForClassification(plm_model, template, verbalizer, freeze_plm = config.plm.optimize.freeze_para)
-            
+
     elif config.task == "generation":
         template = load_template(config=config, model=plm_model, tokenizer=plm_tokenizer, plm_config=plm_config)
         prompt_model = PromptForGeneration(plm_model, template, freeze_plm = config.plm.optimize.freeze_para, gen_config = config.generation)
@@ -150,13 +150,21 @@ def trainer(EXP_PATH, config, Processor, train_dataset = None, valid_dataset = N
 
     if config.task == "classification":
         if config.classification.auto_t or config.classification.auto_v:
-            runner = LMBFFClassificationRunner(train_dataset = train_dataset, 
-                                                valid_dataset = valid_dataset, 
-                                                test_dataset = test_dataset, 
+            runner = LMBFFClassificationRunner(train_dataset = train_dataset,
+                                                valid_dataset = valid_dataset,
+                                                test_dataset = test_dataset,
                                                 template=template,
                                                 verbalizer=verbalizer,
                                                 config = config
                                                 )
+        elif config.verbalizer == "proto_verbalizer":
+            runner = ProtoVerbClassificationRunner(model = prompt_model,
+                                    train_dataloader = train_dataloader,
+                                    valid_dataloader = valid_dataloader,
+                                    test_dataloader = test_dataloader,
+                                    id2label = Processor.id2label,
+                                    config = config
+            )
         else:
             runner = ClassificationRunner(model = prompt_model,
                                     train_dataloader = train_dataloader,
@@ -173,7 +181,7 @@ def trainer(EXP_PATH, config, Processor, train_dataset = None, valid_dataset = N
             test_dataloader = test_dataloader,
             config = config
         )
-        
+
     if zero:
         res = runner.test()
     elif test:
@@ -187,4 +195,4 @@ def trainer(EXP_PATH, config, Processor, train_dataset = None, valid_dataset = N
 
 if __name__ == "__main__":
     main()
-    
+

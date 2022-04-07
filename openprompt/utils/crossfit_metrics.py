@@ -1,7 +1,7 @@
 # Used in tutorial 4.1, where all tasks are completed in generation fashion
 # This scripts is used for evaluation of the generation text and convert it into the metric of the orginial task.
 # directly copied from https://github.com/INK-USC/CrossFit/blob/ce47dfa9478d2d19e7176888ee1f39413b3bd91c/dataloader/metrics.py#L241
-# Thanks to the authors of CrossFit for the interesting paper (https://arxiv.org/abs/2104.08835) and awesome  project. 
+# Thanks to the authors of CrossFit for the interesting paper (https://arxiv.org/abs/2104.08835) and awesome  project.
 
 import numpy as np
 import string
@@ -22,7 +22,7 @@ METRICS = {
     'ai2_arc': 'ACC',
     'amazon_polarity': 'Classification-F1',
     'anli': 'Classification-F1',
-    'app_reviews': 'Pearson-Correlation', 
+    'app_reviews': 'Pearson-Correlation',
     'aqua_rat': 'ACC',
     'art': 'ACC',
     'aslg_pc12': 'EM',
@@ -174,7 +174,7 @@ METRICS = {
     'yelp_review_full': 'Pearson-Correlation'
 }
 
-def evaluate(predictions, data, metric):
+def evaluate(predictions, data, metric, **kwargs):
     def cast_to_float(predictions):
         new_predictions = []
         for prediction in predictions:
@@ -195,21 +195,21 @@ def evaluate(predictions, data, metric):
     elif metric == "ACC":
         accs = []
         for (prediction, dp) in zip(predictions, data):
-            accs.append(get_accruacy_over_list(prediction, dp))
+            accs.append(get_accruacy_over_list(prediction, dp, **kwargs))
         return np.mean(accs)
-    elif metric == "QA-F1": # haven't be tested 
+    elif metric == "QA-F1": # haven't be tested
         f1s = []
         for (prediction, dp) in zip(predictions, data):
             f1s.append(get_f1_over_list(prediction, dp))
         return np.mean(f1s)
     elif metric == "Classification-F1":
         return f1_score([dp for dp in data], predictions, average="macro")
-    elif metric == "Matthew-Correlation": # haven't be tested 
+    elif metric == "Matthew-Correlation": # haven't be tested
         return get_matthews_corr(data, predictions)
-    elif metric == "Pearson-Correlation": # haven't be tested 
+    elif metric == "Pearson-Correlation": # haven't be tested
         predictions = cast_to_float(predictions)
         return pearsonr([float(dp[0]) for dp in data], predictions)[0]
-    elif metric == "Rouge-L": # haven't be tested 
+    elif metric == "Rouge-L": # haven't be tested
         rouges = []
         for (prediction, dp) in zip(predictions, data):
             rouges.append(get_rouge_over_list(prediction, dp))
@@ -243,9 +243,13 @@ def qa_f1_score(prediction, ground_truth):
     f1 = (2 * precision * recall) / (precision + recall)
     return f1
 
-def accuracy(prediction, ground_truth):
-    prediction = prediction[:len(ground_truth)]
-    return prediction.lower() == ground_truth.lower()
+def accuracy(prediction, ground_truth, **kwargs):
+    if isinstance(prediction, str) and isinstance(ground_truth, str):
+        if kwargs.get("only_compare_prefix", False):
+            prediction = prediction[:len(ground_truth)]
+        return prediction.lower() == ground_truth.lower()
+    else:
+        return prediction == ground_truth
 
 def get_rouge_over_list(prediction, groundtruth):
     def remove_punc(text):
@@ -261,11 +265,11 @@ def get_rouge_over_list(prediction, groundtruth):
         return np.max([rouge.get_scores(prediction, gt, avg=True)["rouge-l"]["f"] for gt in groundtruth])
     return rouge.get_scores(prediction, groundtruth, avg=True)["rouge-l"]["f"]
 
-def get_accruacy_over_list(prediction, groundtruth):
+def get_accruacy_over_list(prediction, groundtruth, **kwargs):
     if type(groundtruth)==list:
         if len(groundtruth)==0:
             return 0
-        return np.max([accuracy(prediction, gt) for gt in groundtruth])
+        return np.max([accuracy(prediction, gt, **kwargs) for gt in groundtruth])
     return accuracy(prediction, groundtruth)
 
 def get_f1_over_list(prediction, groundtruth):
