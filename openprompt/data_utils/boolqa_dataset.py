@@ -615,4 +615,5 @@ PROCESSORS = {
     # "chnsenticorpboolqa": ChnSentiCorpBoolQAdataset, # not implemented
     # "unifiedboolqa_zh": ZHUnifiedBoolQADataset,
     "unifiedboolqa_zh_3w_equal": BoolQADataset,
+    "dueefinboolqa": BoolQADataset,
 }

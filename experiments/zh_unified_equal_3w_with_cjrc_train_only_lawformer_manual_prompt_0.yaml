@@ -1,0 +1,82 @@
+dataset:
+  name: unifiedboolqa_zh_3w_equal
+  path: datasets/BoolQA/ZHUnifiedBoolQA_equal3w_with_cjrc
+
+dataloader:
+  max_seq_length: 1024
+  truncate_method: tail
+  decoder_max_length: 3
+
+task: classification
+classification:
+  parent_config:  task
+  metric:
+    - macro-f1
+    - micro-f1
+    - accuracy
+  loss_function:  cross_entropy
+   
+
+plm:
+  model_name: lawformer
+  model_path: thunlp/Lawformer
+  tokenizer_path: hfl/chinese-roberta-wwm-ext
+  optimize:
+    freeze_para: False
+    lr: 0.00001
+    weight_decay: 0.01
+    scheduler:
+      type: 
+      num_warmup_steps: 500
+
+train:
+  batch_size: 9
+  gradient_accumulation_steps: 2
+  max_grad_norm: 1.0
+  num_epochs: 10
+  num_training_steps: 
+
+test:
+  batch_size: 9
+
+dev:
+  batch_size: 9
+
+
+template: manual_template
+verbalizer: manual_verbalizer
+
+
+manual_template:
+  choice: 0
+  file_path: scripts/ZHUnifiedBoolQA/manual_template.txt
+
+
+manual_verbalizer:
+  choice: 0
+  file_path: scripts/ZHUnifiedBoolQA/manual_verbalizer.txt
+  
+environment:
+  num_gpus: 1
+  cuda_visible_devices:
+    - 0
+  local_rank: 0
+
+learning_setting: full
+
+# few_shot:
+#   parent_config: learning_setting
+#   few_shot_sampling: sampling_from_train
+  
+# sampling_from_train:
+#   parent_config: few_shot_sampling
+#   num_examples_per_label: 10
+#   also_sample_dev: True
+#   num_examples_per_label_dev: 10
+#   seed:
+#     - 123
+#     - 456
+#     - 789
+#     - 321
+#     - 654
+    
